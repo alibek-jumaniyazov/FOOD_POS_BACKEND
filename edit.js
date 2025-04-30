@@ -34,14 +34,21 @@ let categories = {
 };
 
 // 🛍️ Cart (karzinka)
-let cart = []; // [{ id, productId, count }]
+let cart = [];
 
 // ✅ GET - barcha mahsulotlar
+// ✅ GET - barcha mahsulotlar (har birida 'type' bo‘ladi)
 app.get("/products", (req, res) => {
   let allProducts = [];
+
   for (let category in categories) {
-    allProducts = allProducts.concat(categories[category]);
+    const withType = categories[category].map((product) => ({
+      ...product,
+      type: category,
+    }));
+    allProducts = allProducts.concat(withType);
   }
+
   res.json(allProducts);
 });
 
@@ -128,35 +135,30 @@ app.delete("/products/:category/:id", (req, res) => {
 });
 
 // 🛒 CART ENDPOINTS
-// 🔎 Mahsulotni umumiy ro‘yxatdan topish uchun helper
-function findProductById(id) {
-  for (let category in categories) {
-    const product = categories[category].find((p) => p.id == id);
-    if (product) return product;
-  }
-  return null;
-}
-
-// 🛒 Karzinkadagi mahsulotlar
 
 // ✅ GET - karzinkadagi mahsulotlar va total narx
 app.get("/cart", (req, res) => {
-  const items = cart
-    .map((item) => {
-      const product = findProductById(item.productId);
-      if (!product) return null;
-      return {
-        id: item.id,
-        productId: item.productId,
-        count: item.count,
-        title: product.title,
-        unitPrice: product.price,
-        totalPrice: +(product.price * item.count).toFixed(2),
-      };
-    })
-    .filter(Boolean);
+  const items = cart.map((item) => {
+    let foundProduct = null;
 
-  const total = items.reduce((acc, item) => acc + item.totalPrice, 0);
+    for (const category in categories) {
+      foundProduct = categories[category].find((p) => p.id === item.productId);
+      if (foundProduct) {
+        foundProduct = { ...foundProduct, type: category };
+        break;
+      }
+    }
+
+    return {
+      product: foundProduct,
+      count: item.count,
+    };
+  });
+
+  const total = items.reduce(
+    (acc, item) => acc + item.product.price * item.count,
+    0
+  );
 
   res.json({
     items,
@@ -165,71 +167,51 @@ app.get("/cart", (req, res) => {
   });
 });
 
-// ➕ POST - mahsulotni karzinkaga qo‘shish (bir xil productId bo‘lsa count += yangi count)
+// ➕ POST - mahsulotni karzinkaga qo‘shish
 app.post("/cart", (req, res) => {
-  const { productId, count, note } = req.body;
+  const { productId, count } = req.body;
 
-  if (!productId || typeof count !== "number" || count <= 0) {
-    return res.status(400).json({ message: "productId va count (musbat son) kerak" });
+  if (!productId || !count) {
+    return res.status(400).json({ message: "productId va count kerak" });
   }
 
-  const exists = cart.find(item => item.productId === productId);
+  const exists = cart.find((item) => item.productId === productId);
   if (exists) {
     exists.count += count;
-    if (note) exists.note = note; // optional note update
-    return res.status(200).json({ message: "Count yangilandi", updatedItem: exists });
+    return res.json(exists);
   }
 
-  const newItem = {
+  cart.push({
     id: Date.now(),
     productId,
     count,
-    note: note || ""
-  };
+  });
 
-  cart.push(newItem);
-  res.status(201).json({ message: "Yangi mahsulot karzinkaga qo‘shildi", addedItem: newItem });
+  res.status(201).json({ message: "Mahsulot karzinkaga qo‘shildi" });
 });
 
-
-// ✏️ PUT - karzinkadagi mahsulot count'ini yangilash
+// ✏️ PUT - mahsulotni yangilash (count yoki note)
 app.put("/cart/:id", (req, res) => {
   const { id } = req.params;
   const { count } = req.body;
-
   const item = cart.find((i) => i.id == id);
-  if (!item) return res.status(404).json({ message: "Cart item topilmadi" });
 
-  if (typeof count !== "number") {
-    return res
-      .status(400)
-      .json({ message: "Yangi count raqam bo'lishi kerak" });
-  }
+  if (!item) return res.status(404).json({ message: "Item not found" });
 
-  item.count = count;
+  if (count !== undefined) item.count = count;
 
-  const product = findProductById(item.productId);
-  res.json({
-    id: item.id,
-    productId: item.productId,
-    count: item.count,
-    title: product?.title,
-    unitPrice: product?.price,
-    totalPrice: +(product?.price * item.count).toFixed(2),
-  });
+  res.json(item);
 });
+
 // ❌ DELETE - mahsulotni karzinkadan o‘chirish
 app.delete("/cart/:id", (req, res) => {
   const { id } = req.params;
   const index = cart.findIndex((i) => i.id == id);
-  if (index === -1) {
-    return res.status(404).json({ message: "Cart item topilmadi" });
-  }
+  if (index === -1) return res.status(404).json({ message: "Item not found" });
 
   cart.splice(index, 1);
   res.status(204).send();
 });
-
 app.listen(PORT, () => {
   console.log(`✅ Server ${PORT}-portda ishlayapti`);
 });
