@@ -14,32 +14,28 @@ let categories = {
       id: 1,
       title: "Spicy seasoned seafood noodles",
       price: 2.29,
-      bowls: 20,
-      availability: "20 Bowls available",
+      availability: 20,
       category: "hotdishes",
     },
     {
       id: 2,
       title: "Spicy beef ramen",
       price: 3.49,
-      bowls: 20,
-      availability: "15 Bowls available",
+      availability: 15,
       category: "hotdishes",
     },
     {
       id: 3,
       title: "Spicy beef ramen",
       price: 3.49,
-      bowls: 20,
-      availability: "15 Bowls available",
+      availability: 15,
       category: "hotdishes",
     },
     {
       id: 4,
       title: "Spicy beef ramen",
       price: 3.49,
-      bowls: 20,
-      availability: "15 Bowls available",
+      availability: 15,
       category: "hotdishes",
     },
   ],
@@ -48,16 +44,14 @@ let categories = {
       id: 5,
       title: "Cold sushi rolls",
       price: 2.69,
-      bowls: 20,
-      availability: "10 Rolls available",
+      availability: 10,
       category: "colddishes",
     },
     {
       id: 6,
       title: "Spicy beef ramen",
       price: 3.49,
-      bowls: 20,
-      availability: "15 Bowls available",
+      availability: 15,
       category: "colddishes",
     },
   ],
@@ -104,12 +98,12 @@ app.get("/products/:category/:id", (req, res) => {
 // ➕ POST - kategoriya bo‘yicha mahsulot qo‘shish
 app.post("/products/:category", (req, res) => {
   const { category } = req.params;
-  const { title, price, availability, bowls } = req.body;
+  const { title, price, availability } = req.body;
 
   if (!categories[category]) {
     return res.status(404).json({ message: "Category not found" });
   }
-  if (!title || !price || !availability || !bowls) {
+  if (!title || !price || !availability) {
     return res.status(400).json({ message: "All fields are required" });
   }
 
@@ -117,8 +111,8 @@ app.post("/products/:category", (req, res) => {
     id: categories[category].length + 1,
     title,
     price: parseFloat(price),
-    bowls,
     availability,
+    category,
   };
 
   categories[category].push(newProduct);
@@ -128,7 +122,7 @@ app.post("/products/:category", (req, res) => {
 // ✏️ PUT - mahsulotni yangilash
 app.put("/products/:category/:id", (req, res) => {
   const { category, id } = req.params;
-  const { title, price, availability, bowls } = req.body;
+  const { title, price, availability } = req.body;
 
   if (!categories[category])
     return res.status(404).json({ message: "Category not found" });
@@ -143,8 +137,6 @@ app.put("/products/:category/:id", (req, res) => {
   product.title = title;
   product.price = parseFloat(price);
   product.availability = availability;
-  product.bowls = bowls;
-
   res.json(product);
 });
 
@@ -228,12 +220,10 @@ app.post("/cart", (req, res) => {
   };
 
   cart.push(newItem);
-  res
-    .status(201)
-    .json({
-      message: "Yangi mahsulot karzinkaga qo‘shildi",
-      addedItem: newItem,
-    });
+  res.status(201).json({
+    message: "Yangi mahsulot karzinkaga qo‘shildi",
+    addedItem: newItem,
+  });
 });
 
 // ✏️ PUT - karzinkadagi mahsulot count'ini yangilash
