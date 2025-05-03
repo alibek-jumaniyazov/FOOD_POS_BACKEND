@@ -60,6 +60,8 @@ let categories = {
 // 🛍️ Cart (karzinka)
 let cart = []; // [{ id, productId, count }]
 
+let orders = []; // Har bir order: { id, customer: { name, email }, items: [], status }
+
 // ✅ GET - barcha mahsulotlar
 app.get("/products", (req, res) => {
   let allProducts = [];
@@ -106,9 +108,10 @@ app.post("/products/:category", (req, res) => {
   if (!title || !price || !availability) {
     return res.status(400).json({ message: "All fields are required" });
   }
+  const allProducts = Object.values(categories).flat();
 
   const newProduct = {
-    id: categories[category].length + 1,
+    id: allProducts.length + 1,
     title,
     price: parseFloat(price),
     availability,
@@ -178,6 +181,7 @@ app.get("/cart", (req, res) => {
         productId: item.productId,
         count: item.count,
         title: product.title,
+        note: item.note,
         unitPrice: product.price,
         totalPrice: +(product.price * item.count).toFixed(2),
       };
@@ -193,7 +197,6 @@ app.get("/cart", (req, res) => {
   });
 });
 
-// ➕ POST - mahsulotni karzinkaga qo‘shish (bir xil productId bo‘lsa count += yangi count)
 app.post("/cart", (req, res) => {
   const { productId, count, note } = req.body;
 
@@ -206,7 +209,9 @@ app.post("/cart", (req, res) => {
   const exists = cart.find((item) => item.productId === productId);
   if (exists) {
     exists.count += count;
-    if (note) exists.note = note; // optional note update
+    if (note !== undefined) {
+      exists.note = note; // faqat note yuborilgan bo‘lsa, yangilanadi
+    }
     return res
       .status(200)
       .json({ message: "Count yangilandi", updatedItem: exists });
@@ -226,38 +231,142 @@ app.post("/cart", (req, res) => {
   });
 });
 
-// ✏️ PUT - karzinkadagi mahsulot count'ini yangilash
+// ✏️ PUT - karzinkadagi mahsulot count yoki note'ini yangilash
 app.put("/cart/:id", (req, res) => {
   const { id } = req.params;
-  const { count } = req.body;
+  const { count, note } = req.body;
 
   const item = cart.find((i) => i.id == id);
-  if (!item) return res.status(404).json({ message: "Cart item topilmadi" });
-
-  if (typeof count !== "number") {
-    return res
-      .status(400)
-      .json({ message: "Yangi count raqam bo'lishi kerak" });
+  if (!item) {
+    return res.status(404).json({ message: "Cart item topilmadi" });
   }
 
-  item.count = count;
+  // Agar count yuborilgan bo‘lsa, tekshiruv va yangilash
+  if (count !== undefined) {
+    if (typeof count !== "number" || count <= 0) {
+      return res
+        .status(400)
+        .json({ message: "Yangi count musbat raqam bo'lishi kerak" });
+    }
+    item.count = count;
+  }
+
+  // Agar note yuborilgan bo‘lsa, yangilash
+  if (note !== undefined) {
+    item.note = note;
+  }
 
   const product = findProductById(item.productId);
   res.json({
     id: item.id,
     productId: item.productId,
     count: item.count,
+    note: item.note,
     title: product?.title,
     unitPrice: product?.price,
     totalPrice: +(product?.price * item.count).toFixed(2),
   });
 });
+
 // ❌ DELETE - mahsulotni karzinkadan o‘chirish
 app.delete("/cart/:id", (req, res) => {
   const { id } = req.params;
   const index = cart.findIndex((i) => i.id == id);
   if (index === -1) {
     return res.status(404).json({ message: "Cart item topilmadi" });
+  }
+
+  cart.splice(index, 1);
+  res.status(204).send();
+});
+
+app.get("/orders", (req, res) => {
+  res.json(orders);
+});
+
+app.post("/orders", (req, res) => {
+  const { customer, paymentMethod, diningOption, tableNumber, products, totalPrice } =
+    req.body;
+
+  if (
+    !customer.name ||
+    !customer.email ||
+    !paymentMethod ||
+    !diningOption ||
+    cart.length === 0
+  ) {
+    return res
+      .status(400)
+      .json({ message: "Barcha maydonlar to‘ldirilishi kerak" });
+  }
+
+  const orderItems = products.map((item) => {
+    const product = findProductById(item.productId);
+
+    if (!product || product.availability < item.count) {
+      return null;
+    }
+
+    // 🔻 availability ni kamaytirish
+    product.availability -= item.count;
+
+    return {
+      productId: item.productId,
+      title: product.title,
+      price: product.price,
+      count: item.count,
+      note: item.note,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+    };
+  });
+
+  if (orderItems.includes(null)) {
+    return res
+      .status(400)
+      .json({ message: "Mahsulot yetarli emas yoki mavjud emas" });
+  }
+
+  const newOrder = {
+    id: Date.now(),
+    customer: {
+      name: customer.name,
+      email: customer.email,
+    },
+    products: orderItems,
+    paymentMethod,
+    diningOption,
+    totalPrice,
+    tableNumber,
+    status: "Pending",
+  };
+
+  orders.push(newOrder);
+  cart = []; // 🧹 Savatni tozalash
+  res.status(201).json({ message: "Buyurtma yaratildi", order: newOrder });
+});
+
+app.put("/orders/:id/status", (req, res) => {
+  const { id } = req.params;
+  const order = orders.find((o) => o.id == id);
+
+  if (!order) {
+    return res.status(404).json({ message: "Buyurtma topilmadi" });
+  }
+
+  if (order.status === "Pending") order.status = "Preparing";
+  else if (order.status === "Preparing") order.status = "Completed";
+  else
+    return res.status(400).json({ message: "Buyurtma allaqachon yakunlangan" });
+
+  res.json({ message: "Status yangilandi", order });
+});
+
+app.delete("/orders/:id", (req, res) => {
+  const { id } = req.params;
+  const index = cart.findIndex((i) => i.id == id);
+  if (index === -1) {
+    return res.status(404).json({ message: "Orders topilmadi" });
   }
 
   cart.splice(index, 1);
