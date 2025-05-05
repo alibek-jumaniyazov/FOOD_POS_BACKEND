@@ -192,7 +192,7 @@ app.get("/cart", (req, res) => {
 
   res.json({
     items,
-    totalPrice: `$${total.toFixed(2)}`,
+    totalPrice: total.toFixed(2),
     discount: 0,
   });
 });
@@ -285,8 +285,14 @@ app.get("/orders", (req, res) => {
 });
 
 app.post("/orders", (req, res) => {
-  const { customer, paymentMethod, diningOption, tableNumber, products, totalPrice } =
-    req.body;
+  const {
+    customer,
+    paymentMethod,
+    diningOption,
+    tableNumber,
+    products,
+    totalPrice,
+  } = req.body;
 
   if (
     !customer.name ||
@@ -371,6 +377,55 @@ app.delete("/orders/:id", (req, res) => {
 
   cart.splice(index, 1);
   res.status(204).send();
+});
+
+// ✅ GET - eng ko‘p sotilgan mahsulotlar (most ordered products)
+app.get("/orders/most", (req, res) => {
+  const productSales = {};
+
+  for (const order of orders) {
+    for (const item of order.products) {
+      if (!productSales[item.productId]) {
+        productSales[item.productId] = {
+          productId: item.productId,
+          title: item.title,
+          totalSold: 0,
+        };
+      }
+      productSales[item.productId].totalSold += item.count;
+    }
+  }
+
+  const sorted = Object.values(productSales).sort(
+    (a, b) => b.totalSold - a.totalSold
+  );
+
+  res.json(sorted);
+});
+
+// 📊 GET - buyurtmalar statistikasi
+app.get("/orders/statistics", (req, res) => {
+  const stats = {
+    totalOrders: orders.length,
+    totalRevenue: 0,
+    statusCount: {
+      Pending: 0,
+      Preparing: 0,
+      Completed: 0,
+    },
+  };
+
+  for (const order of orders) {
+    stats.totalRevenue += parseFloat(order.totalPrice);
+    if (stats.statusCount[order.status] !== undefined) {
+      stats.statusCount[order.status]++;
+    }
+  }
+
+  res.json({
+    ...stats,
+    totalRevenue: `$${stats.totalRevenue.toFixed(2)}`,
+  });
 });
 
 app.listen(PORT, () => {
