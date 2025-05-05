@@ -1,21 +1,28 @@
 const express = require("express");
-const cors = require("cors");
-const connectDB = require("./db");
-
+const mongoose = require("mongoose");
 const app = express();
-const PORT = 3000;
+const cors = require("cors");
+require("dotenv").config();
 
 app.use(cors());
 app.use(express.json());
-app.use("/uploads", express.static("uploads")); // Rasm fayllar uchun
 
-// 🔌 MongoDB
-connectDB();
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
 
-// 📦 Routerlar
-app.use("/products", require("./routes/products"));
-app.use("/cart", require("./routes/cart"));
+  .then(() => console.log("✅ MongoDB ulandi"))
+  .catch((err) => console.error("❌ MongoDB xato:", err));
 
+const productRoutes = require("./routes/products"); 
+app.use("/", productRoutes);
+
+const orderRoutes = require("./routes/orders");
+app.use("/", orderRoutes);
+
+const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Server ${PORT}-portda ishlayapti`);
+  console.log(`🚀 Server http://localhost:${PORT} da ishga tushdi`);
 });

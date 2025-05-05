@@ -7,7 +7,6 @@ app.use(cors());
 
 app.use(express.json());
 
-// 🛒 Fake database (kategoriya bo‘yicha mahsulotlar)
 let categories = {
   hotdishes: [
     {
@@ -57,10 +56,9 @@ let categories = {
   ],
 };
 
-// 🛍️ Cart (karzinka)
-let cart = []; // [{ id, productId, count }]
+let cart = []; 
 
-let orders = []; // Har bir order: { id, customer: { name, email }, items: [], status }
+let orders = []; 
 
 // ✅ GET - barcha mahsulotlar
 app.get("/products", (req, res) => {
