@@ -6,7 +6,7 @@ const PORT = 3000;
 app.use(cors());
 
 app.use(express.json());
-
+app.use(express.urlencoded({ extended: true }));
 let categories = {
   hotdishes: [
     {
@@ -15,6 +15,8 @@ let categories = {
       price: 2.29,
       availability: 20,
       category: "hotdishes",
+      image:
+        "https://ik.imagekit.io/lokaydo/defoult.png?updatedAt=1746655027872",
     },
     {
       id: 2,
@@ -22,20 +24,8 @@ let categories = {
       price: 3.49,
       availability: 15,
       category: "hotdishes",
-    },
-    {
-      id: 3,
-      title: "Spicy beef ramen",
-      price: 3.49,
-      availability: 15,
-      category: "hotdishes",
-    },
-    {
-      id: 4,
-      title: "Spicy beef ramen",
-      price: 3.49,
-      availability: 15,
-      category: "hotdishes",
+      image:
+        "https://ik.imagekit.io/lokaydo/defoult.png?updatedAt=1746655027872",
     },
   ],
   colddishes: [
@@ -45,6 +35,8 @@ let categories = {
       price: 2.69,
       availability: 10,
       category: "colddishes",
+      image:
+        "https://ik.imagekit.io/lokaydo/defoult.png?updatedAt=1746655027872",
     },
     {
       id: 6,
@@ -52,15 +44,16 @@ let categories = {
       price: 3.49,
       availability: 15,
       category: "colddishes",
+      image:
+        "https://ik.imagekit.io/lokaydo/defoult.png?updatedAt=1746655027872",
     },
   ],
 };
 
-let cart = []; 
+let cart = [];
 
-let orders = []; 
+let orders = [];
 
-// ✅ GET - barcha mahsulotlar
 app.get("/products", (req, res) => {
   let allProducts = [];
   for (let category in categories) {
@@ -73,7 +66,6 @@ app.get("/products", (req, res) => {
   res.json(allProducts);
 });
 
-// ✅ GET - kategoriya bo‘yicha mahsulotlar
 app.get("/products/:category", (req, res) => {
   const { category } = req.params;
   if (!categories[category]) {
@@ -82,7 +74,6 @@ app.get("/products/:category", (req, res) => {
   res.json(categories[category]);
 });
 
-// ✅ GET - kategoriya va id bo‘yicha mahsulot
 app.get("/products/:category/:id", (req, res) => {
   const { category, id } = req.params;
   if (!categories[category]) {
@@ -95,16 +86,15 @@ app.get("/products/:category/:id", (req, res) => {
   res.json(product);
 });
 
-// ➕ POST - kategoriya bo‘yicha mahsulot qo‘shish
 app.post("/products/:category", (req, res) => {
   const { category } = req.params;
-  const { title, price, availability } = req.body;
+  const { title, price, availability, image } = req.body;
 
   if (!categories[category]) {
     return res.status(404).json({ message: "Category not found" });
   }
-  if (!title || !price || !availability) {
-    return res.status(400).json({ message: "All fields are required" });
+  if (!title || !price || !availability || !image || !category) {
+    return res.status(400).json({ error: "Missing required fields" });
   }
   const allProducts = Object.values(categories).flat();
 
@@ -114,16 +104,16 @@ app.post("/products/:category", (req, res) => {
     price: parseFloat(price),
     availability,
     category,
+    image,
   };
 
   categories[category].push(newProduct);
   res.status(201).json(newProduct);
 });
 
-// ✏️ PUT - mahsulotni yangilash
 app.put("/products/:category/:id", (req, res) => {
   const { category, id } = req.params;
-  const { title, price, availability } = req.body;
+  const { title, price, availability, image } = req.body;
 
   if (!categories[category])
     return res.status(404).json({ message: "Category not found" });
@@ -131,17 +121,20 @@ app.put("/products/:category/:id", (req, res) => {
   const product = categories[category].find((p) => p.id == id);
   if (!product) return res.status(404).json({ message: "Product not found" });
 
-  if (!title || !price || !availability) {
-    return res.status(400).json({ message: "All fields are required" });
+  if (!title || !price || !availability || !image) {
+    return res
+      .status(400)
+      .json({ message: "All fields (including image) are required" });
   }
 
   product.title = title;
   product.price = parseFloat(price);
   product.availability = availability;
+  product.image = image;
+
   res.json(product);
 });
 
-// ❌ DELETE - mahsulotni o‘chirish
 app.delete("/products/:category/:id", (req, res) => {
   const { category, id } = req.params;
 
@@ -156,8 +149,6 @@ app.delete("/products/:category/:id", (req, res) => {
   res.status(204).send();
 });
 
-// 🛒 CART ENDPOINTS
-// 🔎 Mahsulotni umumiy ro‘yxatdan topish uchun helper
 function findProductById(id) {
   for (let category in categories) {
     const product = categories[category].find((p) => p.id == id);
@@ -166,9 +157,6 @@ function findProductById(id) {
   return null;
 }
 
-// 🛒 Karzinkadagi mahsulotlar
-
-// ✅ GET - karzinkadagi mahsulotlar va total narx
 app.get("/cart", (req, res) => {
   const items = cart
     .map((item) => {
@@ -182,6 +170,7 @@ app.get("/cart", (req, res) => {
         note: item.note,
         unitPrice: product.price,
         totalPrice: +(product.price * item.count).toFixed(2),
+        image: product.image,
       };
     })
     .filter(Boolean);
@@ -194,7 +183,6 @@ app.get("/cart", (req, res) => {
     discount: 0,
   });
 });
-
 app.post("/cart", (req, res) => {
   const { productId, count, note } = req.body;
 
@@ -208,11 +196,16 @@ app.post("/cart", (req, res) => {
   if (exists) {
     exists.count += count;
     if (note !== undefined) {
-      exists.note = note; // faqat note yuborilgan bo‘lsa, yangilanadi
+      exists.note = note;
     }
     return res
       .status(200)
       .json({ message: "Count yangilandi", updatedItem: exists });
+  }
+
+  const product = findProductById(productId);
+  if (!product) {
+    return res.status(404).json({ message: "Mahsulot topilmadi" });
   }
 
   const newItem = {
@@ -220,6 +213,7 @@ app.post("/cart", (req, res) => {
     productId,
     count,
     note: note || "",
+    image: product.image,
   };
 
   cart.push(newItem);
@@ -229,7 +223,6 @@ app.post("/cart", (req, res) => {
   });
 });
 
-// ✏️ PUT - karzinkadagi mahsulot count yoki note'ini yangilash
 app.put("/cart/:id", (req, res) => {
   const { id } = req.params;
   const { count, note } = req.body;
@@ -239,7 +232,6 @@ app.put("/cart/:id", (req, res) => {
     return res.status(404).json({ message: "Cart item topilmadi" });
   }
 
-  // Agar count yuborilgan bo‘lsa, tekshiruv va yangilash
   if (count !== undefined) {
     if (typeof count !== "number" || count <= 0) {
       return res
@@ -249,7 +241,6 @@ app.put("/cart/:id", (req, res) => {
     item.count = count;
   }
 
-  // Agar note yuborilgan bo‘lsa, yangilash
   if (note !== undefined) {
     item.note = note;
   }
@@ -266,7 +257,6 @@ app.put("/cart/:id", (req, res) => {
   });
 });
 
-// ❌ DELETE - mahsulotni karzinkadan o‘chirish
 app.delete("/cart/:id", (req, res) => {
   const { id } = req.params;
   const index = cart.findIndex((i) => i.id == id);
@@ -311,7 +301,6 @@ app.post("/orders", (req, res) => {
       return null;
     }
 
-    // 🔻 availability ni kamaytirish
     product.availability -= item.count;
 
     return {
@@ -322,6 +311,7 @@ app.post("/orders", (req, res) => {
       note: item.note,
       unitPrice: item.unitPrice,
       totalPrice: item.totalPrice,
+      image: product.image,
     };
   });
 
@@ -346,7 +336,7 @@ app.post("/orders", (req, res) => {
   };
 
   orders.push(newOrder);
-  cart = []; // 🧹 Savatni tozalash
+  cart = [];
   res.status(201).json({ message: "Buyurtma yaratildi", order: newOrder });
 });
 
@@ -376,8 +366,7 @@ app.delete("/orders/:id", (req, res) => {
   cart.splice(index, 1);
   res.status(204).send();
 });
-
-// ✅ GET - eng ko‘p sotilgan mahsulotlar (most ordered products)
+// GET /orders/most
 app.get("/orders/most", (req, res) => {
   const productSales = {};
 
@@ -388,6 +377,7 @@ app.get("/orders/most", (req, res) => {
           productId: item.productId,
           title: item.title,
           totalSold: 0,
+          image: item.image,
         };
       }
       productSales[item.productId].totalSold += item.count;
@@ -401,7 +391,6 @@ app.get("/orders/most", (req, res) => {
   res.json(sorted);
 });
 
-// 📊 GET - buyurtmalar statistikasi
 app.get("/orders/statistics", (req, res) => {
   const stats = {
     totalOrders: orders.length,
