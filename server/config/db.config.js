@@ -1,5 +1,5 @@
-const mysql2 = require('mysql2')
-const { default: env } = require("./config/env.config");
+import env from "./env.config.js"
+import mysql2 from "mysql2"
 
 const db = mysql2.createConnection({
     host: env.DB_HOST,
